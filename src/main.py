@@ -1,56 +1,14 @@
 from argparse import ArgumentError
-from ast import AST, Call, Constant, For, FunctionDef, Module, parse, dump
+from ast import AnnAssign, Assign, AugAssign, BinOp, Call, Constant, For, FunctionDef, Index, Module, Name, Subscript, parse, dump
 from sys import argv
-from typing import List, Iterable, Union
 
 from util import flatten
-
-
-class Bound:
-    upper: Union[int, str]
-    lower: Union[int, str]
-    step: Union[int, str]
-
-    def __init__(self, args: List[AST]):
-        if len(args) == 1:
-            self.upper = args[0].value if isinstance(
-                args[0], Constant) else args[0].id
-            self.lower = 0
-            self.step = 1
-        if len(args) == 2:
-            self.upper = args[0].value if isinstance(
-                args[0], Constant) else args[0].id
-            self.lower = args[1].value if isinstance(
-                args[1], Constant) else args[1].id
-            self.step = 1
-        if len(args) == 2:
-            self.upper = args[0].value if isinstance(
-                args[0], Constant) else args[0].id
-            self.lower = args[1].value if isinstance(
-                args[1], Constant) else args[1].id
-            self.step = args[2].value if isinstance(
-                args[2], Constant) else args[2].id
-
-    def __repr__(self) -> str:
-        return "{ " + "upper:{}, lower:{} step:{}".format(self.upper, self.lower, self.step) + " }"
-
-
-class LoopDepInfo:
-    level: int
-    index: str
-    bound_info: Bound
-
-    def __init__(self, level, index, bound_info):
-        self.level = level
-        self.index = index
-        self.bound_info = bound_info
-
-    def __repr__(self) -> str:
-        return "{\n" + "  lvl:{},\n  idx:{},\n  bounds:{},\n".format(self.level, self.index, self.bound_info) + "}"
+from loop_info import LoopDepInfo, Bound, SubScriptIdx
 
 
 def peel_loop_info(stmt: For, lvl: int):
-    infos = []
+    loop_infos = []
+    index_infos = []
     if isinstance(stmt, For) and isinstance(stmt.iter, Call) and stmt.iter.func.id == 'range':
         print(dump(stmt))
 
@@ -58,9 +16,21 @@ def peel_loop_info(stmt: For, lvl: int):
         bound = Bound(stmt.iter.args)
         for inner in stmt.body:
             lvl += 1
-            infos.extend(flatten(peel_loop_info(inner, lvl)))
-        infos.append(LoopDepInfo(lvl, index, bound))
-    return infos
+            loop_infos.extend(flatten(peel_loop_info(inner, lvl)))
+        loop_infos.append(LoopDepInfo(lvl, index, bound, stmt))
+    elif isinstance(stmt, (Assign, AugAssign, AnnAssign)):
+        subscript = stmt.targets[0]
+        while isinstance(subscript, Subscript):
+            if isinstance(subscript.slice.value, (BinOp, Name, Constant)):
+                index_infos.append(SubScriptIdx(subscript.slice.value))
+            if isinstance(subscript.value, Subscript):
+                subscript = subscript.value
+                if isinstance(subscript.value, Name):
+                    index_infos.append(SubScriptIdx(subscript.slice.value))
+                    print(subscript.value.id)
+                    break
+        print(index_infos)
+    return loop_infos
 
 
 def main():
@@ -72,14 +42,14 @@ def main():
         code = file.read()
         mod = parse(code, argv[1])
 
-    infos = []
+    loop_infos = []
     for func in mod.body:
         if isinstance(func, FunctionDef):
             for stmt in func.body:
                 print(dump(stmt))
-                infos.extend(peel_loop_info(stmt, 0))
+                loop_infos.extend(peel_loop_info(stmt, 0))
 
-    print(list(reversed(infos)))
+    print(list(reversed(loop_infos)))
 
 
 if __name__ == '__main__':

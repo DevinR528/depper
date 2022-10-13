@@ -5,27 +5,38 @@ def loop_func():
         for j in range(1):
             A[i+1][j] += A[i][j] + 1
 
-
-Assign(
-    targets=[
-        Subscript(
-            value=Subscript(
-                value=Name(id='A'),
-                slice=Index(value=BinOp(left=Name(id='i'), op=Add(),
-                            right=Constant(value=1, kind=None))),
-            ),
-            slice=Index(value=Name(id='j')),
-        )
-    ],
-    value=BinOp(
-        left=Subscript(
-            value=Subscript(value=Name(id='A'), slice=Index(
-                value=Name(id='i'))
-            ),
-            slice=Index(value=Name(id='j')),
-        ),
-        op=Add(),
-        right=Constant(value=1, kind=None)
+ListComp(
+    elt=ListComp(
+        elt=Constant(value=0),
+        generators=[
+            comprehension(
+                target=Name(id='_', ctx=Store()),
+                iter=Call(
+                    func=Name(id='range', ctx=Load()),
+                    args=[Constant(value=11)],
+                    keywords=[]
+                ),
+                ifs=[],
+                is_async=0
+            )
+        ]
     ),
-    type_comment=None
+    generators=[
+        comprehension(
+            target=Name(id='_', ctx=Store()),
+            iter=Call(func=Name(id='range', ctx=Load()), args=[Constant(value=11)], keywords=[]),
+            ifs=[],
+            is_async=0
+        )
+    ]
+)
+
+ListComp(
+    elt=Constant(value=0),
+    generators=[
+        comprehension(target=Name(id='_', ctx=Store()),
+        iter=Call(func=Name(id='range', ctx=Load()), args=[Constant(value=11)], keywords=[]),
+        ifs=[],
+        is_async=0)
+    ]
 )

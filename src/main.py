@@ -8,39 +8,14 @@ from ast import (
 )
 # fmt: on
 from sys import argv
+from typing import List
 
-from util import flatten
-from loop_info import Assignment, Expression, LoopDepInfo, Bound, SubScriptIdx
-
-
-def make_expression(e: expr) -> Expression:
-    index_infos = []
-    is_array_ref = False
-    target = e
-    while isinstance(target, Subscript):
-        is_array_ref = True
-        # Pull out the indexing value
-        if isinstance(target.slice, (BinOp, Name, Constant)):
-            index_infos.append(SubScriptIdx(target.slice))
-        # Python represents the subscripts nested like `[[array_name, indexed_by], indexed_by]`
-        # with the innermost Subscript having the array name
-        #
-        # We just got the `indexed_by` value now we need to check for the array name
-        if isinstance(target.value, Subscript):
-            target = target.value
-            # We reached the inner most index and can pull out the array name
-            if isinstance(target.value, Name):
-                index_infos.append(SubScriptIdx(target.slice))
-                return Expression((target.value.id, list(reversed(index_infos))))
-
-    # If we have not already saved this assignment we need to track it
-    if not is_array_ref:
-        return Expression(target)
-
-    return None
+from util import flatten, TODO
+from loop_info import LoopDepInfo, Bound, SubScriptIdx
+from expr_info import Assignment, Expression
 
 
-def peel_loop_info(stmt: For, lvl: int):
+def walk_stmts_collect_info(stmt: For, lvl: int) -> List[LoopDepInfo]:
     loop_infos = []
     var_infos = []
     # This is our fortran DO loop, the only thing we detect is `for var in range(...)`
@@ -53,29 +28,22 @@ def peel_loop_info(stmt: For, lvl: int):
         bound = Bound(stmt.iter.args)
         for inner in stmt.body:
             lvl += 1
-            loop_infos.extend(flatten(peel_loop_info(inner, lvl)))
+            loop_infos.extend(flatten(walk_stmts_collect_info(inner, lvl)))
             lvl -= 1
-
         loop_infos.append(LoopDepInfo(lvl, index, bound, stmt))
 
     # Any assignment that contains a subscript (array index), we are pretending nothing else exists
-    # i.e. `hashmap['crap']`
+    # i.e. `dictionary['crap']`
     elif isinstance(stmt, (Assign, AugAssign, AnnAssign)):
-        # TODO:
-        # This only deals with the left hand side of any assignment. Have an Assignment class
-        # that has all expressions with the ability to later relate array indexing with the
-        # array definition and named indexing with the definition of that name...
         for t in stmt.targets:
-            var_infos.append(make_expression(t))
-
+            var_infos.append(Expression(t))
         ass: Assignment
         if len(var_infos) == 1:
-            print("VALUE: ", dump(stmt.value))
-            ass = Assignment(
-                left=var_infos[0], right=make_expression(stmt.value), lvl=lvl
-            )
-
+            ass = Assignment(left=var_infos[0], right=Expression(stmt.value), lvl=lvl)
+        else: raise TODO('make destructure assignment work...')
         print("vars:\n", ass, "\n")
+
+    else: raise TODO('more stmt types')
 
     return loop_infos
 
@@ -94,10 +62,15 @@ def main():
 
     loop_infos = []
     for func in mod.body:
+        # TODO:
+        # This only handles toplevel functions, not globals
+        # or other toplevel statements kinds
         if isinstance(func, FunctionDef):
             for stmt in func.body:
-                print(dump(stmt))
-                loop_infos.extend(peel_loop_info(stmt, 0))
+
+                # print(dump(stmt), "\n")
+
+                loop_infos.extend(walk_stmts_collect_info(stmt, 0))
 
     print(list(reversed(loop_infos)))
 

@@ -13,7 +13,14 @@ def loop_func():
     # A = [[0 for _ in range(11)] for _ in range(11)]
     for i in range(10):
         for j in range(n):
-            A[i + 1][j] = A[i][j] + 1
+            if n > 5:
+                A[i + 1][j] = A[i][j] + 1
+            elif n <= 2:
+                A[i][j + 1] = A[i][j]
+            elif n == 2:
+                A[i][j + 1] = A[i][j]
+            else:
+                A[i][j] = A[i][j] + 2
 
 # def loop_func():
 #     n = 10

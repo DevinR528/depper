@@ -2,50 +2,37 @@ from argparse import ArgumentError
 
 # fmt: off
 from ast import (
-    AnnAssign, Assign, AugAssign, BinOp, Call, Constant,
-    For, FunctionDef, Module, Name, Subscript,
-    expr, parse, dump,
+    AnnAssign, Assign, AugAssign, Call, For,
+    FunctionDef, If, Module, parse, dump,
 )
 # fmt: on
 from sys import argv
 from typing import List
 
 from util import flatten, TODO
-from loop_info import LoopDepInfo, Bound, SubScriptIdx
-from expr_info import Assignment, Expression
+from expr_info import Stmt, ForStmt
 
 
-def walk_stmts_collect_info(stmt: For, lvl: int) -> List[LoopDepInfo]:
-    loop_infos = []
-    var_infos = []
+def walk_stmts_collect_info(stmt: For, lvl: int) -> List[Stmt]:
+    stmts = []
     # This is our fortran DO loop, the only thing we detect is `for var in range(...)`
     if (
         isinstance(stmt, For)
         and isinstance(stmt.iter, Call)
         and stmt.iter.func.id == 'range'
     ):
-        index = stmt.target.id
-        bound = Bound(stmt.iter.args)
-        for inner in stmt.body:
-            lvl += 1
-            loop_infos.extend(flatten(walk_stmts_collect_info(inner, lvl)))
-            lvl -= 1
-        loop_infos.append(LoopDepInfo(lvl, index, bound, stmt))
+        stmts.append(Stmt(stmt, lvl))
 
     # Any assignment that contains a subscript (array index), we are pretending nothing else exists
     # i.e. `dictionary['crap']`
     elif isinstance(stmt, (Assign, AugAssign, AnnAssign)):
-        for t in stmt.targets:
-            var_infos.append(Expression(t))
-        ass: Assignment
-        if len(var_infos) == 1:
-            ass = Assignment(left=var_infos[0], right=Expression(stmt.value), lvl=lvl)
-        else: raise TODO('make destructure assignment work...')
-        print("vars:\n", ass, "\n")
 
-    else: raise TODO('more stmt types')
+        stmts.append(Stmt(stmt, lvl))
+    elif isinstance(stmt, If):
+         stmts.append(Stmt(stmt, lvl))
+    else: raise TODO(f"more stmt types {dump(stmt)}")
 
-    return loop_infos
+    return stmts
 
 
 ERR_MSG = "must specify a python file\nusage: depper <path/to/file.py>"
@@ -72,7 +59,7 @@ def main():
 
                 loop_infos.extend(walk_stmts_collect_info(stmt, 0))
 
-    print(list(reversed(loop_infos)))
+    print(loop_infos)
 
 
 if __name__ == '__main__':

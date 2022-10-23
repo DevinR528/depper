@@ -15,10 +15,6 @@ def loop_func():
         for j in range(n):
             if n > 5:
                 A[i + 1][j] = A[i][j] + 1
-            elif n <= 2:
-                A[i][j + 1] = A[i][j]
-            elif n == 2:
-                A[i][j + 1] = A[i][j]
             else:
                 A[i][j] = A[i][j] + 2
 

@@ -1,12 +1,13 @@
 # fmt: off
 from ast import (
-    AST, AnnAssign, Assign, AugAssign, BinOp, Call, Compare, Constant, For, If, ListComp, Name, Subscript, comprehension, dump,
+    AST, AnnAssign, Assign, AugAssign, BinOp, Call, Compare, Constant, Expr, For, If, ListComp, Name, Subscript, comprehension, dump,
     expr, operator, Add, BitAnd, BitOr, BitXor, Div, FloorDiv,
     LShift, RShift, Mod, Mult, MatMult, Pow, Sub, Invert,
     Not, UAdd, USub, Eq, Gt, GtE, Lt, LtE, NotEq, NotIn,
     List as ListAst, parse,
 )
-from enum import Enum
+from enum import Enum, EnumMeta
+from json import JSONEncoder
 # fmt: on
 from typing import Any, List, Tuple, Union
 from typing_extensions import Self
@@ -81,23 +82,23 @@ def expr_to_str(sub: Union[Name, Constant, BinOp, Call, Subscript]) -> str:
         return f"{sub.func.id}(...)"
 
 
-class VarName:
+class VarName():
     name: str
 
     def __init__(self, name: str) -> Self:
         self.name = name
 
     def __repr__(self) -> str:
-        return "Var { " + f"name:{self.name}" + " }"
+        return '{ "tag":"Var",' + f'"name":"{self.name}"' + ' }'
 
 
-class ConstKind(Enum):
-    INT = 0
-    STR = 1
-    LIST = 2
+class ConstKind(EnumMeta):
+    INT = 'INT'
+    STR = 'STR'
+    LIST = 'LIST'
 
 
-class Const:
+class Const():
     kind: ConstKind
     val: Union[int, str, List[Self]]
 
@@ -112,34 +113,35 @@ class Const:
         self.val = val
 
     def __repr__(self) -> str:
-        return "Const { " + f"value:{self.val}, kind:{self.kind}" + " }"
+        val = f'"{self.val}"' if self.kind == ConstKind.STR else self.val
+        return '{ "tag":"Const",' + f'"value":{val},"kind":"{self.kind}"' + ' }'
 
 
-class BinOpKind(Enum):
-    ADD = 0
-    BITAND = 1
-    BITOR = 2
-    BITXOR = 3
-    DIV = 4
-    FLOORDIV = 5
-    LSHIFT = 6
-    RSHIFT = 7
-    MOD = 8
-    MULT = 9
-    MATMULT = 10
-    POW = 11
-    SUB = 12
-    INVERT = 13
-    NOT = 14
-    UADD = 15
-    USUB = 16
-    EQ = 17
-    GT = 18
-    GTE = 19
-    LT = 20
-    LTE = 21
-    NOTEQ = 22
-    NOTIN = 23
+class BinOpKind(EnumMeta):
+    ADD = 'ADD'
+    BITAND = 'BITAND'
+    BITOR = 'BITOR'
+    BITXOR = 'BITXOR'
+    DIV = 'DIV'
+    FLOORDIV = 'FLOORDIV'
+    LSHIFT = 'LSHIFT'
+    RSHIFT = 'RSHIFT'
+    MOD = 'MOD'
+    MULT = 'MULT'
+    MATMULT = 'MATMULT'
+    POW = 'POW'
+    SUB = 'SUB'
+    INVERT = 'INVERT'
+    NOT = 'NOT'
+    UADD = 'UADD'
+    USUB = 'USUB'
+    EQ = 'EQ'
+    GT = 'GT'
+    GTE = 'GTE'
+    LT = 'LT'
+    LTE = 'LTE'
+    NOTEQ = 'NOTEQ'
+    NOTIN = 'NOTIN'
 
 
 # fmt: off
@@ -175,20 +177,20 @@ def new(cls, op: operator) -> None:
         case NotIn(): return BinOpKind.NOTIN
         case _ as x: raise ValueError(f"No operand match {x}")
 
-# Continue the HACK from above, hard overwriting the constructor
+# Continue the HACK from above, hard overwriting the actual constructor
 setattr(BinOpKind, '__new__', new)
 # fmt: on
 
 
-class BinaryOp:
-    kind: BinOpKind
+class BinaryOp():
+    opkind: BinOpKind
     left: 'Expression'
     right: 'Expression'
 
     def __init__(self, val: Union[BinOp, Compare]) -> None:
         match val:
             case BinOp():
-                self.kind = BinOpKind(val.op)
+                self.opkind = BinOpKind(val.op)
                 self.left = Expression(val.left)
                 self.right = Expression(val.right)
             case Compare():
@@ -196,20 +198,26 @@ class BinaryOp:
                     raise TODO('Don\'t use crazy multi operators (x > y < z)...')
                 if len(val.comparators) > 1:
                     raise TODO('Don\'t use crazy multi comparators (x > y < z)...')
-
-                self.kind = BinOpKind(val.ops[0])
+                self.opkind = BinOpKind(val.ops[0])
                 self.left = Expression(val.left)
                 self.right = Expression(val.comparators[0])
+            case _: raise TODO(f'{dump(val)}')
 
     def __repr__(self) -> str:
         return (
-            "BinOp { "
-            + f"left:{self.left}, right:{self.right}, kind:{self.kind}"
-            + " }"
+            '{ "tag":"BinOp",'
+            + f'"left":{self.left},"right":{self.right},"opkind":"{self.opkind}"'
+            + '}'
         )
 
+    def from_for(op: BinOpKind, left: str, right: 'Expression') -> Self:
+        op = BinaryOp.__new__(BinaryOp)
+        op.opkind = op
+        op.left = Expression(Name(left))
+        op.right = right
+        return op
 
-class CallExpr:
+class CallExpr():
     fn_name: VarName
     args: List['Expression']
 
@@ -218,10 +226,10 @@ class CallExpr:
         self.args = list(map(Expression, val.args))
 
     def __repr__(self) -> str:
-        return "Call { " + f"name:{self.fn_name}, args:{self.args}" + " }"
+        return '{ "tag":"Call",' + f'"name":{self.fn_name},"args":{self.args}' + '}'
 
 
-class IndexOp:
+class IndexOp():
     array: VarName
     indexes: List['Expression']
 
@@ -238,10 +246,10 @@ class IndexOp:
         self.indexes = idx
 
     def __repr__(self) -> str:
-        return "IndexOp { " + f"array:{self.array}, indexes:{self.indexes}" + " }"
+        return '{ "tag":"IndexOp",' + f'"array":{self.array},"indexes":{self.indexes}' + ' }'
 
 
-class GeneratorExpr:
+class GeneratorExpr():
     loop_ele: 'Expression'
     iterable: 'Expression'
     if_filter: Any
@@ -258,14 +266,15 @@ class GeneratorExpr:
             raise TODO('found if filter in list comp')
 
     def __repr__(self) -> str:
+        asyncval = 'true' if self.is_async else 'false'
         return (
-            "GeneratorExpr { "
-            + f"loop_ele:{self.loop_ele}, iter:{self.iterable}, async:{self.is_async}"
-            + " }"
+            '{ "tag":"GeneratorExpr",'
+            + f'"loop_ele":{self.loop_ele},"iter":{self.iterable},"async":{asyncval}'
+            + ' }'
         )
 
 
-class ListCompExpr:
+class ListCompExpr():
     elem: 'Expression'
     generator: GeneratorExpr
 
@@ -274,10 +283,10 @@ class ListCompExpr:
         self.generator = GeneratorExpr(val.generators)
 
     def __repr__(self) -> str:
-        return "ListCompExpr { " + f"ele:{self.elem}, gen:{self.generator}" + " }"
+        return ' { "tag":"ListCompExpr",' + f'"elem":{self.elem},"gen":{self.generator}' + '}'
 
 
-class Expression:
+class Expression():
     value: Union[VarName, Const, BinaryOp, List[Self], IndexOp, CallExpr, ListCompExpr]
 
     def __init__(
@@ -307,31 +316,36 @@ class Expression:
             raise TypeError("invalid type", type(value), dump(value))
 
     def __repr__(self) -> str:
-        return "Expression { " + f"value:{self.value}" + " }"
+        return '{ "tag":"Expression",' + f'"value":{self.value}' + '}'
+
+    def from_for(op: BinOpKind, left: str, right: Self) -> Self:
+        ex = Expression.__new__(Expression)
+        ex.value=BinaryOp.from_for(op, left, right)
+        return ex
 
 
-class Assignment:
+class Assignment():
     left: Expression
     right: Expression
     loop_lvl: int
 
     def __init__(self, assign: Union[Assign, AnnAssign, AugAssign], lvl: int):
-        if len(assign.targets) > 1:
+        targets = assign.targets if isinstance(assign, Assign) else [assign.target]
+        if len(targets) > 1:
             raise TODO("do destructure assignments")
-
-        self.left = Expression(assign.targets[0])
+        self.left = Expression(targets[0])
         self.right = Expression(assign.value)
         self.loop_lvl = lvl
 
     def __repr__(self) -> str:
         return (
-            "Assignment { "
-            + f"loop_lvl:{self.loop_lvl}, left:{self.left}, right:{self.right}"
-            + " }"
+            '{ "tag":"Assignment",'
+            + f'"loop_lvl":{self.loop_lvl},"left":{self.left},"right":{self.right}'
+            + '}'
         )
 
 
-class ElseIf:
+class ElseIf():
     cond: Expression
     then: List['Stmt']
 
@@ -340,10 +354,10 @@ class ElseIf:
         self.then = list(map(lambda x: Stmt(x, lvl), value.body))
 
     def __repr__(self) -> str:
-        return "ElseIf { " + f"cond:{self.cond}, then:{self.then}," + " }"
+        return ' { "tag":"ElseIf",' + f'"cond":{self.cond},"then":{self.then}' + ' }'
 
 
-class IfStmt:
+class IfStmt():
     cond: Expression
     then: List['Stmt']
     elifs: List[Self]
@@ -372,13 +386,13 @@ class IfStmt:
 
     def __repr__(self) -> str:
         return (
-            "IfStmt { "
-            + f"cond:{self.cond}, then:{self.then}, elifs:{self.elifs}, else:{self.els}"
-            + " }"
+            ' { "tag":"IfStmt",'
+            + f'"cond":{self.cond},"then":{self.then},"elifs":{self.elifs},"else":{self.els}'
+            + ' }'
         )
 
 
-class LoopBounds:
+class LoopBounds():
     start: Expression
     stop: Expression
     step: Expression
@@ -398,11 +412,11 @@ class LoopBounds:
                 self.step = Expression(step)
 
     def __repr__(self) -> str:
-        return "LoopBounds { " + f"start:{self.start}, stop:{self.stop}, step:{self.step}" + " }"
+        return ' { "tag":"LoopBounds",' + f'"start":{self.start},"stop":{self.stop},"step":{self.step}' + ' }'
 
 
 
-class ForStmt:
+class ForStmt():
     index_var: VarName
     loop_bound: LoopBounds
     body: List['Stmt']
@@ -414,21 +428,21 @@ class ForStmt:
 
     def __repr__(self) -> str:
         return (
-            "ForStmt { "
-            + f"index_var:{self.index_var}, bound:{self.loop_bound}, body:{self.body}"
+            '{ "tag":"ForStmt",'
+            + f'"index_var":{self.index_var},"bound":{self.loop_bound},"body":{self.body}'
             + " }"
         )
 
 
-class StmtKind(Enum):
-    ASSIGN = 0
-    IF = 1
-    FOR = 2
-    WHILE = 3
-    CALL = 4
+class StmtKind(EnumMeta):
+    ASSIGN = 'ASSIGN'
+    IF = 'IF'
+    FOR = 'FOR'
+    WHILE = 'WHILE'
+    CALL = 'CALL'
 
 
-class Stmt:
+class Stmt():
     kind: StmtKind
     value: Union[Assignment, IfStmt, ForStmt]
 
@@ -445,8 +459,11 @@ class Stmt:
             case For():
                 self.kind = StmtKind.FOR
                 self.value = ForStmt(value, lvl)
+            case Expr(value=Call()):
+                self.kind = StmtKind.CALL
+                self.value = CallExpr(value.value)
             case _:
                 raise TODO(f"found a this: {value}")
 
     def __repr__(self) -> str:
-        return "Stmt { " + f"kind:{self.kind}, value:{self.value}" + " }\n"
+        return '{ "tag":"Stmt", ' + f'"kind":"{self.kind}", "value":{self.value}' + ' }'

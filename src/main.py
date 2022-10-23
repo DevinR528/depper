@@ -5,12 +5,41 @@ from ast import (
     AnnAssign, Assign, AugAssign, Call, For,
     FunctionDef, If, Module, parse, dump,
 )
+import json
 # fmt: on
 from sys import argv
-from typing import List
+from typing import List, Tuple
+from dep_info import CtrlGraph, DepGraph, LoopInfo, NameMap
 
 from util import flatten, TODO
-from expr_info import Stmt, ForStmt
+from expr_info import Stmt, ForStmt, StmtKind
+
+
+def build_dep_info(
+    statements: List[Stmt],
+) -> Tuple[LoopInfo, NameMap, DepGraph, CtrlGraph]:
+    loops = LoopInfo()
+    deps = DepGraph()
+    ctrl = CtrlGraph()
+
+    def recurse_stmts(
+        stmts: List[Stmt], lvl: int, loops: LoopInfo, deps: DepGraph, ctrl: CtrlGraph
+    ):
+        for stmt in stmts:
+            match stmt.kind:
+                case StmtKind.FOR:
+                    loops.add_loop(stmt.value, lvl)
+                    ctrl.branch_for(stmt.value)
+
+                    recurse_stmts(stmt.value.body, lvl + 1, loops, deps, ctrl)
+                case StmtKind.IF:
+                    ctrl.branch_if(stmt.value)
+                case StmtKind.ASSIGN:
+                    deps.add_write(stmt.value.left)
+                    deps.add_read(stmt.value.right)
+
+    recurse_stmts(statements, 0, loops, deps, ctrl)
+    return loops, NameMap(), deps, ctrl
 
 
 def walk_stmts_collect_info(stmt: For, lvl: int) -> List[Stmt]:
@@ -22,15 +51,10 @@ def walk_stmts_collect_info(stmt: For, lvl: int) -> List[Stmt]:
         and stmt.iter.func.id == 'range'
     ):
         stmts.append(Stmt(stmt, lvl))
-
     # Any assignment that contains a subscript (array index), we are pretending nothing else exists
     # i.e. `dictionary['crap']`
-    elif isinstance(stmt, (Assign, AugAssign, AnnAssign)):
-
+    else:
         stmts.append(Stmt(stmt, lvl))
-    elif isinstance(stmt, If):
-         stmts.append(Stmt(stmt, lvl))
-    else: raise TODO(f"more stmt types {dump(stmt)}")
 
     return stmts
 
@@ -54,12 +78,10 @@ def main():
         # or other toplevel statements kinds
         if isinstance(func, FunctionDef):
             for stmt in func.body:
-
-                # print(dump(stmt), "\n")
-
                 loop_infos.extend(walk_stmts_collect_info(stmt, 0))
 
     print(loop_infos)
+    print(build_dep_info(loop_infos))
 
 
 if __name__ == '__main__':

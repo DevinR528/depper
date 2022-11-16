@@ -3,7 +3,7 @@ from enum import Enum
 from typing import List, Mapping, Optional, Tuple
 from typing_extensions import Self
 from expr_info import BinOpKind, BinaryOp, ForStmt, Expression, IfStmt, Stmt, StmtKind
-
+from util import flatten
 
 class DepKind(Enum):
     """
@@ -60,7 +60,7 @@ class DepGraph:
 
 class CtrlNode:
     name: str
-    edge: Tuple[bool, Expression]
+    edge: Tuple[bool, List[Expression]]
     block: List[Stmt]
     children: List[Self]
 
@@ -68,7 +68,7 @@ class CtrlNode:
         self,
         name: str,
         parents: List[Self] = [],
-        edge: Optional[Tuple[bool, Expression]] = None,
+        edge: Optional[Tuple[bool, List[Expression]]] = None,
     ) -> None:
         self.name = name
         self.block = []
@@ -89,6 +89,10 @@ class CtrlNode:
             + '}'
         )
 
+    def dump_dot(self):
+        # TODO: look for cycles now that loops are a thing
+        return '\n'.join(set(map(lambda kid: f'{self.name} -> {kid.name}', self.children)))
+
 
 class CtrlGraph:
     root: CtrlNode
@@ -103,72 +107,87 @@ class CtrlGraph:
         return '{' + f'"tag":"CtrlGraph", "root":{self.root}' + '}'
 
     def branch_if(self, ctrl_flow: IfStmt):
-        self.count += 1
         currents = self.current
-
-        tru = CtrlNode(self.count, currents, (True, ctrl_flow.cond))
+        self.count += 1
+        # The then block (true case)
+        tru = CtrlNode(self.count, currents, (True, [ctrl_flow.cond]))
         for c in self.current:
             c.children.append(tru)
 
         self.current = [tru]
         for s in ctrl_flow.then:
             match s.kind:
-                case StmtKind.IF:
-                    self.branch_if(s.value)
-                case StmtKind.FOR:
-                    self.branch_for(s.value)
-                case StmtKind.ASSIGN:
-                    self.add_curr_blk(s)
+                case StmtKind.IF: self.branch_if(s.value)
+                case StmtKind.FOR: self.branch_for(s.value)
+                case _: self.add_curr_blk(s)
 
         self.current = currents
-        # TODO: elifs...
+        # Any elif blocks
+        elifs: List[CtrlNode] = []
+        for elseif in ctrl_flow.elifs:
+            self.count += 1
+            elseiftru = CtrlNode(self.count, currents, (True, [elseif.cond]))
+            elifs.append(elseiftru)
+            for c in self.current:
+                c.children.append(elseiftru)
 
+            self.current = [elseiftru]
+            for s in elseif.then:
+                match s.kind:
+                    case StmtKind.IF: self.branch_if(s.value)
+                    case StmtKind.FOR: self.branch_for(s.value)
+                    case _: self.add_curr_blk(s)
+            self.current = currents
+
+        # The above last line of the for loop will reset `self.current` to `currents`
+        # Now the else block
         self.count += 1
-        fals = CtrlNode(self.count, currents, (False, ctrl_flow.els))
+        fals = CtrlNode(self.count, currents, (
+            False,
+            [ctrl_flow.cond, *flatten(map(lambda x: x.edge[1], elifs))]
+        ))
         for c in self.current:
             c.children.append(fals)
 
         self.current = [fals]
-        for s in ctrl_flow.then:
-            match s.kind:
-                case StmtKind.IF: self.branch_if(s.value)
-                case StmtKind.FOR: self.branch_for(s.value)
-                case StmtKind.ASSIGN: self.add_curr_blk(s)
+        match ctrl_flow.els.kind:
+            case StmtKind.IF: self.branch_if(ctrl_flow.els.value)
+            case StmtKind.FOR: self.branch_for(ctrl_flow.els.value)
+            case _: self.add_curr_blk(ctrl_flow.els)
 
         # Merge node, the join of if/else
         self.count += 1
-        new = CtrlNode(self.count, [tru, fals], None)
-        tru.children.append(new)
-        fals.children.append(new)
+        new = CtrlNode(self.count, [tru, *elifs, fals], None)
+        for ef in [tru, *elifs, fals]:
+            ef.children.append(new)
         self.current = [new]
 
     def branch_for(self, ctrl_flow: ForStmt):
         self.count += 1
         currents = self.current
-        # test_expr = Expression.from_for(BinOpKind.LT, ctrl_flow.index_var.name, ctrl_flow.loop_bound.stop)
-        test_expr = None
+
+        test_expr = Expression.from_for(ctrl_flow)
+
         loop = CtrlNode(self.count, currents, (True, test_expr))
         for c in currents:
             c.children.append(loop)
-
         self.current = [loop]
         for s in ctrl_flow.body:
             match s.kind:
                 case StmtKind.IF: self.branch_if(s.value)
                 case StmtKind.FOR: self.branch_for(s.value)
-                case StmtKind.ASSIGN: self.add_curr_blk(s)
+                case _: self.add_curr_blk(s)
+        # make this a "loop" in the graph
+        for c in self.current:
+            c.children.append(loop)
 
         self.current = currents
 
         self.count += 1
-        skip = CtrlNode(self.count, currents, (False, test_expr))
-        for c in self.current:
-            c.children.append(skip)
-
-        self.count += 1
-        new = CtrlNode(self.count, [loop, skip])
+        new = CtrlNode(self.count, [loop, *self.current])
         loop.children.append(new)
-        skip.children.append(new)
+        for c in self.current:
+            c.children.append(new)
         self.current = [new]
 
 
@@ -176,6 +195,18 @@ class CtrlGraph:
         for c in self.current:
             c.block.append(stmt)
 
+    def dump_dot(self, name: str):
+        lines = []
+        def walk(n: CtrlNode):
+            lines.append(n.dump_dot())
+            for c in n.children:
+                walk(c)
+
+        walk(self.root)
+        with open(name, 'w+') as fd:
+            fd.write('digraph G {\n')
+            fd.write('\n'.join(lines))
+            fd.write('}\n')
 
 class NameMap(dict):
     '''

@@ -34,27 +34,30 @@ def build_dep_info(
                     recurse_stmts(stmt.value.body, lvl + 1, loops, deps, ctrl)
                 case StmtKind.IF:
                     ctrl.branch_if(stmt.value)
-                case StmtKind.ASSIGN:
-                    deps.add_write(stmt.value.left)
-                    deps.add_read(stmt.value.right)
+                case _:
+                    ctrl.add_curr_blk(stmt)
+                    # deps.add_write(stmt.value.left)
+                    # deps.add_read(stmt.value.right)
 
     recurse_stmts(statements, 0, loops, deps, ctrl)
+
+    ctrl.dump_dot('forloop.dot')
+
     return loops, NameMap(), deps, ctrl
 
 
-def walk_stmts_collect_info(stmt: For, lvl: int) -> List[Stmt]:
-    stmts = []
+def walk_stmts_collect_info(stmt, lvl: int) -> Stmt:
     # This is our fortran DO loop, the only thing we detect is `for var in range(...)`
     if (
         isinstance(stmt, For)
         and isinstance(stmt.iter, Call)
         and stmt.iter.func.id == 'range'
     ):
-        stmts.append(Stmt(stmt, lvl))
+        return Stmt(stmt, lvl)
     # Any assignment that contains a subscript (array index), we are pretending nothing else exists
     # i.e. `dictionary['crap']`
     else:
-        stmts.append(Stmt(stmt, lvl))
+        return Stmt(stmt, lvl)
 
     return stmts
 
@@ -78,7 +81,7 @@ def main():
         # or other toplevel statements kinds
         if isinstance(func, FunctionDef):
             for stmt in func.body:
-                loop_infos.extend(walk_stmts_collect_info(stmt, 0))
+                loop_infos.append(walk_stmts_collect_info(stmt, 0))
 
     print(loop_infos)
     print(build_dep_info(loop_infos))

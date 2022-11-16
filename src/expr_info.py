@@ -6,9 +6,9 @@ from ast import (
     Not, UAdd, USub, Eq, Gt, GtE, Lt, LtE, NotEq, NotIn,
     List as ListAst, parse,
 )
-from enum import Enum, EnumMeta
-from json import JSONEncoder
 # fmt: on
+
+from enum import Enum, EnumMeta
 from typing import Any, List, Tuple, Union
 from typing_extensions import Self
 
@@ -210,12 +210,6 @@ class BinaryOp():
             + '}'
         )
 
-    def from_for(op: BinOpKind, left: str, right: 'Expression') -> Self:
-        op = BinaryOp.__new__(BinaryOp)
-        op.opkind = op
-        op.left = Expression(Name(left))
-        op.right = right
-        return op
 
 class CallExpr():
     fn_name: VarName
@@ -318,11 +312,16 @@ class Expression():
     def __repr__(self) -> str:
         return '{ "tag":"Expression",' + f'"value":{self.value}' + '}'
 
-    def from_for(op: BinOpKind, left: str, right: Self) -> Self:
-        ex = Expression.__new__(Expression)
-        ex.value=BinaryOp.from_for(op, left, right)
-        return ex
+    def from_for(loop: 'ForStmt'):
+        test_expr = object.__new__(Expression)
+        test_expr.value = object.__new__(BinaryOp)
+        test_expr.value.opkind = BinOpKind.LT
 
+        test_expr.value.left  = object.__new__(Expression)
+        test_expr.value.left.value = loop.index_var
+
+        test_expr.value.right = loop.loop_bound.stop
+        return test_expr
 
 class Assignment():
     left: Expression
@@ -333,8 +332,17 @@ class Assignment():
         targets = assign.targets if isinstance(assign, Assign) else [assign.target]
         if len(targets) > 1:
             raise TODO("do destructure assignments")
+
         self.left = Expression(targets[0])
-        self.right = Expression(assign.value)
+        if isinstance(assign, AugAssign):
+            self.right = Expression.__new__(Expression)
+            self.right.value = BinaryOp.__new__(BinaryOp)
+
+            self.right.value.opkind = BinOpKind(assign.op)
+            self.right.value.left = Expression(targets[0])
+            self.right.value.right = Expression(assign.value)
+        else:
+            self.right = Expression(assign.value)
         self.loop_lvl = lvl
 
     def __repr__(self) -> str:
@@ -378,7 +386,7 @@ class IfStmt():
                     elfs.orelse = []
                     self.elifs.append(ElseIf(elfs, lvl))
                     elfs = tmp
-                case [Assign() | AnnAssign() | AugAssign() as elfs]:
+                case [elfs]:
                     self.els = Stmt(elfs, lvl)
                     break
                 case _:

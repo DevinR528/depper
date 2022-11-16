@@ -689,7 +689,6 @@
     },
 
 
-
     {
         "tag": "CtrlGraph",
         "root": {
@@ -702,7 +701,61 @@
                         "tag": "CtrlNode",
                         "name": 3,
                         "kids": [],
-                        "block": [],
+                        "block": [{
+                                "tag": "Stmt",
+                                "kind": "ASSIGN",
+                                "value": {
+                                    "tag": "Assignment",
+                                    "loop_lvl": 1,
+                                    "left": {
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "Var",
+                                            "name": "x"
+                                        }
+                                    },
+                                    "right": {
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "BinOp",
+                                            "left": {
+                                                "tag": "Expression",
+                                                "value": {
+                                                    "tag": "Var",
+                                                    "name": "x"
+                                                }
+                                            },
+                                            "right": {
+                                                "tag": "Expression",
+                                                "value": {
+                                                    "tag": "Var",
+                                                    "name": "i"
+                                                }
+                                            },
+                                            "opkind": "ADD"
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "tag": "Stmt",
+                                "kind": "CALL",
+                                "value": {
+                                    "tag": "Call",
+                                    "name": {
+                                        "tag": "Var",
+                                        "name": "print"
+                                    },
+                                    "args": [{
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "Var",
+                                            "name": "x"
+                                        }
+                                    }]
+                                }
+                            }
+                        ],
                         "edge": []
                     }],
                     "block": [{
@@ -710,7 +763,7 @@
                         "kind": "ASSIGN",
                         "value": {
                             "tag": "Assignment",
-                            "loop_lvl": 0,
+                            "loop_lvl": 1,
                             "left": {
                                 "tag": "Expression",
                                 "value": {
@@ -721,9 +774,22 @@
                             "right": {
                                 "tag": "Expression",
                                 "value": {
-                                    "tag": "Const",
-                                    "value": 1,
-                                    "kind": "INT"
+                                    "tag": "BinOp",
+                                    "left": {
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "Var",
+                                            "name": "x"
+                                        }
+                                    },
+                                    "right": {
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "Var",
+                                            "name": "i"
+                                        }
+                                    },
+                                    "opkind": "ADD"
                                 }
                             }
                         }
@@ -737,9 +803,8 @@
                                 "left": {
                                     "tag": "Expression",
                                     "value": {
-                                        "tag": "Const",
-                                        "value": 5,
-                                        "kind": "INT"
+                                        "tag": "Var",
+                                        "name": "i"
                                     }
                                 },
                                 "right": {
@@ -750,7 +815,7 @@
                                         "kind": "INT"
                                     }
                                 },
-                                "opkind": "GT"
+                                "opkind": "LT"
                             }
                         }
                     ]
@@ -762,61 +827,114 @@
                         "tag": "CtrlNode",
                         "name": 3,
                         "kids": [],
-                        "block": [],
-                        "edge": []
-                    }],
-                    "block": [{
-                        "tag": "Stmt",
-                        "kind": "ASSIGN",
-                        "value": {
-                            "tag": "Assignment",
-                            "loop_lvl": 0,
-                            "left": {
-                                "tag": "Expression",
+                        "block": [{
+                                "tag": "Stmt",
+                                "kind": "ASSIGN",
                                 "value": {
-                                    "tag": "Var",
-                                    "name": "x"
+                                    "tag": "Assignment",
+                                    "loop_lvl": 1,
+                                    "left": {
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "Var",
+                                            "name": "x"
+                                        }
+                                    },
+                                    "right": {
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "BinOp",
+                                            "left": {
+                                                "tag": "Expression",
+                                                "value": {
+                                                    "tag": "Var",
+                                                    "name": "x"
+                                                }
+                                            },
+                                            "right": {
+                                                "tag": "Expression",
+                                                "value": {
+                                                    "tag": "Var",
+                                                    "name": "i"
+                                                }
+                                            },
+                                            "opkind": "ADD"
+                                        }
+                                    }
                                 }
                             },
-                            "right": {
-                                "tag": "Expression",
+                            {
+                                "tag": "Stmt",
+                                "kind": "CALL",
                                 "value": {
-                                    "tag": "Const",
-                                    "value": 1,
-                                    "kind": "INT"
+                                    "tag": "Call",
+                                    "name": {
+                                        "tag": "Var",
+                                        "name": "print"
+                                    },
+                                    "args": [{
+                                        "tag": "Expression",
+                                        "value": {
+                                            "tag": "Var",
+                                            "name": "x"
+                                        }
+                                    }]
                                 }
                             }
-                        }
+                        ],
+                        "edge": []
                     }],
+                    "block": [],
                     "edge": [
                         false,
                         {
-                            "tag": "Stmt",
-                            "kind": "ASSIGN",
+                            "tag": "Expression",
                             "value": {
-                                "tag": "Assignment",
-                                "loop_lvl": 0,
+                                "tag": "BinOp",
                                 "left": {
                                     "tag": "Expression",
                                     "value": {
                                         "tag": "Var",
-                                        "name": "x"
+                                        "name": "i"
                                     }
                                 },
                                 "right": {
                                     "tag": "Expression",
                                     "value": {
                                         "tag": "Const",
-                                        "value": 5,
+                                        "value": 10,
                                         "kind": "INT"
                                     }
-                                }
+                                },
+                                "opkind": "LT"
                             }
                         }
                     ]
                 }
             ],
-            "block": [],
+            "block": [{
+                "tag": "Stmt",
+                "kind": "ASSIGN",
+                "value": {
+                    "tag": "Assignment",
+                    "loop_lvl": 0,
+                    "left": {
+                        "tag": "Expression",
+                        "value": {
+                            "tag": "Var",
+                            "name": "x"
+                        }
+                    },
+                    "right": {
+                        "tag": "Expression",
+                        "value": {
+                            "tag": "Const",
+                            "value": 10,
+                            "kind": "INT"
+                        }
+                    }
+                }
+            }],
             "edge": []
         }
     }
